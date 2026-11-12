@@ -165,6 +165,33 @@ def postar_darkpost(rede, job, video):
 
 # ---------------------------------------------------------------- Instagram (API oficial)
 
+def link_publico(video):
+    """O Instagram baixa o vídeo de um link público. Usa o armazenamento do
+    DarkPost; se não der, usa o link do próprio GitHub (o repositório é público)."""
+    chave = os.environ.get("DARKPOST_API_KEY", "").strip()
+    if chave:
+        try:
+            tipo = mimetypes.guess_type(video.name)[0] or "video/mp4"
+            link = darkpost("POST", "upload/createObjectLinkS3", chave, json={"fileName": video.name, "fileType": tipo})
+            with open(video, "rb") as f:
+                up = requests.put(link["uploadUrl"], data=f, headers={"Content-Type": link.get("contentType") or tipo}, timeout=900)
+            if up.ok and link.get("publicUrl"):
+                teste = requests.head(link["publicUrl"], timeout=30, allow_redirects=True)
+                log(f"Link público (DarkPost): HTTP {teste.status_code}, {teste.headers.get('Content-Type')}")
+                if teste.ok:
+                    return link["publicUrl"]
+        except SystemExit:
+            pass
+        except Exception as e:
+            log(f"Não deu para usar o DarkPost como link: {e}")
+    repo, branch = os.environ.get("GITHUB_REPOSITORY"), os.environ.get("GITHUB_REF_NAME")
+    if not repo or not branch:
+        erro("Sem link público para o vídeo.")
+    url = f"https://raw.githubusercontent.com/{repo}/{branch}/fila/{video.name}"
+    log("Link público (GitHub): " + url)
+    return url
+
+
 def postar_instagram(job, video):
     token = "".join(precisa("IG_ACCESS_TOKEN").split())  # tira espaços e quebras de linha coladas sem querer
     cab = {"Authorization": f"Bearer {token}"}
@@ -191,24 +218,15 @@ def postar_instagram(job, video):
         nome = eu.json().get("username")
     log(f"Instagram: conta @{nome}")
 
-    # 1) cria o container do Reels para upload direto do arquivo
-    dados = {"media_type": "REELS", "upload_type": "resumable", "caption": legenda_de(job, "instagram"), "share_to_feed": "true"}
+    # 1) deixa o vídeo num link público para o Instagram baixar
+    url = link_publico(video)
+
+    # 2) cria o post (container) apontando para esse link
+    dados = {"media_type": "REELS", "video_url": url, "caption": legenda_de(job, "instagram"), "share_to_feed": "true"}
     r = requests.post(f"{graph}/{ig_id}/media", headers=cab, data=dados, timeout=60)
     if not r.ok:
         erro(f"Instagram: erro ao criar o post: {r.text[:500]}")
     container = r.json()["id"]
-
-    # 2) envia o arquivo
-    log("Subindo o vídeo para o Instagram...")
-    with open(video, "rb") as f:
-        r = requests.post(
-            f"{RUPLOAD_IG}/{container}",
-            headers={"Authorization": f"OAuth {token}", "offset": "0", "file_size": str(video.stat().st_size)},
-            data=f,
-            timeout=900,
-        )
-    if not r.ok:
-        erro(f"Instagram: erro no upload: {r.text[:500]}")
 
     # 3) espera o Instagram processar (até 15 min)
     for _ in range(90):
