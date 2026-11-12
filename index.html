@@ -54,6 +54,39 @@
   .check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--text); margin-top: 12px; cursor: pointer; }
   .hide { display: none !important; }
 
+  /* ---- agendamento: atalhos, calendário e relógio ---- */
+  .atalhos { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 12px; }
+  .atalho { background: #0f1116; border: 1px solid var(--line); color: var(--text); padding: 7px 12px; border-radius: 999px; font-size: 13px; }
+  .atalho:hover { border-color: var(--accent); }
+  .agenda { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) {
+    .agenda { grid-template-columns: 1fr; }
+    .atalhos { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+    .atalho { flex: none; }
+  }
+  .cal, .relogio { background: #0f1116; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .cal-topo { display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 14px; margin-bottom: 8px; text-transform: capitalize; }
+  .nav { background: transparent; color: var(--text); font-size: 22px; width: 32px; height: 32px; border-radius: 8px; line-height: 1; }
+  .nav:hover:not(:disabled) { background: var(--line); }
+  .nav:disabled { opacity: .25; cursor: default; }
+  .cal-sem, .cal-dias { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
+  .cal-sem span { font-size: 11px; color: var(--dim); padding: 4px 0; }
+  .dia { background: transparent; color: var(--text); aspect-ratio: 1; border-radius: 50%; font-size: 13px; margin: 1px; }
+  .dia:hover:not(:disabled) { background: var(--line); }
+  .dia:disabled { color: #3b3f4a; cursor: default; }
+  .dia.hoje { box-shadow: inset 0 0 0 1px var(--accent); }
+  .dia.sel, .dia.sel:hover { background: var(--accent) !important; color: #fff; font-weight: 600; }
+  .relogio { display: flex; flex-direction: column; align-items: center; }
+  .rel-digital { display: flex; align-items: center; gap: 2px; font-size: 32px; font-weight: 600; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+  .rel-digital button { background: transparent; color: var(--dim); font-size: 32px; font-weight: 600; padding: 0 6px; border-radius: 8px; }
+  .rel-digital button.on { color: var(--text); background: color-mix(in srgb, var(--accent) 25%, transparent); }
+  #mostrador { width: 100%; max-width: 230px; touch-action: none; cursor: pointer; user-select: none; }
+  #mostrador text { fill: var(--text); font-size: 13px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  #mostrador text.interno { font-size: 11px; fill: var(--dim); }
+  #mostrador text.ativo { fill: #fff; font-weight: 700; }
+  .resumo { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); font-size: 14px; }
+  .resumo.ruim { background: color-mix(in srgb, var(--bad) 12%, transparent); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+
   .status { display: grid; gap: 8px; }
   .st { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #0f1116; border-radius: 10px; font-size: 14px; }
   .st .nome { flex: 1; }
@@ -133,9 +166,28 @@
       <button id="modoAgendar">Agendar</button>
     </div>
     <div id="blocoData" class="hide">
-      <label>Data e hora (horário de Brasília)</label>
-      <input type="datetime-local" id="data">
-      <div class="small">O GitHub confere a fila a cada 15 minutos, então o post pode sair alguns minutos depois do horário.</div>
+      <input type="hidden" id="data">
+      <div class="atalhos" id="atalhos"></div>
+      <div class="agenda">
+        <div class="cal">
+          <div class="cal-topo">
+            <button type="button" class="nav" id="mesAnt" aria-label="Mês anterior">&#8249;</button>
+            <span id="mesNome"></span>
+            <button type="button" class="nav" id="mesProx" aria-label="Próximo mês">&#8250;</button>
+          </div>
+          <div class="cal-sem"><span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span></div>
+          <div class="cal-dias" id="calDias"></div>
+        </div>
+        <div class="relogio">
+          <div class="rel-digital">
+            <button type="button" id="selHora" class="on">12</button><span>:</span><button type="button" id="selMin">00</button>
+          </div>
+          <svg id="mostrador" viewBox="0 0 240 240" aria-label="Relógio"></svg>
+          <div class="small" id="dicaRel">Toque na hora</div>
+        </div>
+      </div>
+      <div class="resumo" id="resumoData"></div>
+      <div class="small">Horário de Brasília. O GitHub confere a fila a cada 15 minutos, então o post pode sair alguns minutos depois.</div>
     </div>
   </div>
 
@@ -271,16 +323,158 @@ function trocarModo(m) {
   if (m === "agendar" && !$("data").value) {
     const d = new Date(Date.now() + 60 * 60 * 1000);
     d.setMinutes(0, 0, 0);
-    $("data").value = localISO(d);
+    definirData(d);
   }
-  $("data").min = localISO(new Date(Date.now() + 10 * 60 * 1000));
   atualizarBotao();
 }
 function localISO(d) {
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
-$("data").oninput = atualizarBotao;
+
+// ---------------------------------------------------------- calendário e relógio
+const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+let escolhido = null;        // Date escolhida
+let mesVisto = new Date();   // mês mostrado no calendário
+let parteRel = "hora";       // "hora" ou "min"
+
+function definirData(d) {
+  escolhido = new Date(d);
+  escolhido.setSeconds(0, 0);
+  mesVisto = new Date(escolhido.getFullYear(), escolhido.getMonth(), 1);
+  $("data").value = localISO(escolhido);
+  desenharCalendario();
+  desenharRelogio();
+  mostrarResumo();
+  atualizarBotao();
+}
+
+function inicioDoDia(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+
+function desenharCalendario() {
+  const hoje = inicioDoDia(new Date());
+  const ano = mesVisto.getFullYear(), mes = mesVisto.getMonth();
+  $("mesNome").textContent = `${MESES[mes]} ${ano}`;
+  $("mesAnt").disabled = ano === hoje.getFullYear() && mes === hoje.getMonth();
+  const primeiro = new Date(ano, mes, 1).getDay();
+  const total = new Date(ano, mes + 1, 0).getDate();
+  let html = "";
+  for (let i = 0; i < primeiro; i++) html += "<span></span>";
+  for (let d = 1; d <= total; d++) {
+    const data = new Date(ano, mes, d);
+    const passado = data < hoje;
+    const cls = ["dia"];
+    if (+data === +hoje) cls.push("hoje");
+    if (escolhido && +inicioDoDia(escolhido) === +data) cls.push("sel");
+    html += `<button type="button" class="${cls.join(" ")}" data-dia="${d}" ${passado ? "disabled" : ""}>${d}</button>`;
+  }
+  $("calDias").innerHTML = html;
+  $("calDias").querySelectorAll("[data-dia]").forEach((b) => b.onclick = () => {
+    const d = new Date(escolhido || new Date());
+    d.setFullYear(ano, mes, +b.dataset.dia);
+    definirData(d);
+  });
+}
+$("mesAnt").onclick = () => { mesVisto = new Date(mesVisto.getFullYear(), mesVisto.getMonth() - 1, 1); desenharCalendario(); };
+$("mesProx").onclick = () => { mesVisto = new Date(mesVisto.getFullYear(), mesVisto.getMonth() + 1, 1); desenharCalendario(); };
+
+// Relógio: horas em dois anéis (externo 1 a 12, interno 13 a 00); minutos de 5 em 5
+const CX = 120, CY = 120, R_EXT = 96, R_INT = 64;
+function posicao(i, raio) {
+  const ang = (i / 12) * 2 * Math.PI - Math.PI / 2;
+  return [CX + raio * Math.cos(ang), CY + raio * Math.sin(ang)];
+}
+function desenharRelogio() {
+  const h = escolhido ? escolhido.getHours() : 12;
+  const m = escolhido ? escolhido.getMinutes() : 0;
+  $("selHora").textContent = String(h).padStart(2, "0");
+  $("selMin").textContent = String(m).padStart(2, "0");
+  $("selHora").classList.toggle("on", parteRel === "hora");
+  $("selMin").classList.toggle("on", parteRel === "min");
+  $("dicaRel").textContent = parteRel === "hora" ? "Toque na hora" : "Toque nos minutos";
+
+  let alvo, raioAlvo;
+  if (parteRel === "hora") {
+    const interno = h === 0 || h > 12;
+    alvo = h % 12; raioAlvo = interno ? R_INT : R_EXT;
+  } else {
+    alvo = m / 5; raioAlvo = R_EXT;
+  }
+  const [px, py] = posicao(alvo, raioAlvo);
+  let svg = `<circle cx="${CX}" cy="${CY}" r="114" fill="#17191f"/>`;
+  svg += `<line x1="${CX}" y1="${CY}" x2="${px}" y2="${py}" stroke="var(--accent)" stroke-width="2"/>`;
+  svg += `<circle cx="${CX}" cy="${CY}" r="4" fill="var(--accent)"/>`;
+  svg += `<circle cx="${px}" cy="${py}" r="16" fill="var(--accent)"/>`;
+  for (let i = 0; i < 12; i++) {
+    if (parteRel === "hora") {
+      const ext = i === 0 ? 12 : i, int = i === 0 ? 0 : i + 12;
+      const [x1, y1] = posicao(i, R_EXT), [x2, y2] = posicao(i, R_INT);
+      svg += `<text x="${x1}" y="${y1}" class="${ext === h ? "ativo" : ""}">${ext}</text>`;
+      svg += `<text x="${x2}" y="${y2}" class="interno ${int === h ? "ativo" : ""}">${String(int).padStart(2, "0")}</text>`;
+    } else {
+      const val = i * 5, [x, y] = posicao(i, R_EXT);
+      svg += `<text x="${x}" y="${y}" class="${val === m ? "ativo" : ""}">${String(val).padStart(2, "0")}</text>`;
+    }
+  }
+  $("mostrador").innerHTML = svg;
+}
+
+function escolherNoRelogio(ev, soltou) {
+  const box = $("mostrador").getBoundingClientRect();
+  const x = (ev.clientX - box.left) * (240 / box.width) - CX;
+  const y = (ev.clientY - box.top) * (240 / box.height) - CY;
+  let ang = Math.atan2(y, x) + Math.PI / 2;
+  if (ang < 0) ang += 2 * Math.PI;
+  const passo = Math.round(ang / (2 * Math.PI) * 12) % 12;
+  const d = new Date(escolhido || new Date());
+  if (parteRel === "hora") {
+    const interno = Math.hypot(x, y) < (R_EXT + R_INT) / 2;
+    let h = interno ? (passo === 0 ? 0 : passo + 12) : (passo === 0 ? 12 : passo);
+    d.setHours(h);
+  } else {
+    d.setMinutes(passo * 5);
+  }
+  escolhido = d;
+  $("data").value = localISO(d);
+  if (soltou && parteRel === "hora") parteRel = "min";
+  definirData(d);
+}
+let arrastando = false;
+$("mostrador").addEventListener("pointerdown", (e) => { arrastando = true; $("mostrador").setPointerCapture(e.pointerId); escolherNoRelogio(e, false); });
+$("mostrador").addEventListener("pointermove", (e) => { if (arrastando) escolherNoRelogio(e, false); });
+$("mostrador").addEventListener("pointerup", (e) => { if (arrastando) { arrastando = false; escolherNoRelogio(e, true); } });
+$("selHora").onclick = () => { parteRel = "hora"; desenharRelogio(); };
+$("selMin").onclick = () => { parteRel = "min"; desenharRelogio(); };
+
+function mostrarResumo() {
+  const el = $("resumoData");
+  if (!escolhido) { el.textContent = ""; return; }
+  const txt = escolhido.toLocaleString("pt-BR", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+  const faltam = escolhido - Date.now();
+  if (faltam < 5 * 60 * 1000) {
+    el.className = "resumo ruim";
+    el.textContent = `${txt}: esse horário já passou ou está perto demais. Escolha pelo menos 5 minutos à frente.`;
+    return;
+  }
+  const horas = Math.floor(faltam / 3600000), min = Math.round((faltam % 3600000) / 60000);
+  const quanto = horas >= 24 ? `daqui a ${Math.round(horas / 24)} dia(s)` : horas > 0 ? `daqui a ${horas}h${min ? String(min).padStart(2, "0") : ""}` : `daqui a ${min} min`;
+  el.className = "resumo";
+  el.innerHTML = `Vai postar <b>${txt}</b> (${quanto})`;
+}
+
+function montarAtalhos() {
+  const agora = new Date();
+  const em = (dias, h, m = 0) => { const d = new Date(); d.setDate(d.getDate() + dias); d.setHours(h, m, 0, 0); return d; };
+  const opcoes = [];
+  const daqui1h = new Date(Date.now() + 3600000); daqui1h.setMinutes(Math.ceil(daqui1h.getMinutes() / 5) * 5, 0, 0);
+  opcoes.push(["Daqui 1h", daqui1h]);
+  [12, 18, 21].forEach((h) => { if (em(0, h) - agora > 15 * 60000) opcoes.push([`Hoje ${h}h`, em(0, h)]); });
+  [12, 18, 21].forEach((h) => opcoes.push([`Amanhã ${h}h`, em(1, h)]));
+  $("atalhos").innerHTML = opcoes.map(([t], i) => `<button type="button" class="atalho" data-i="${i}">${t}</button>`).join("");
+  $("atalhos").querySelectorAll("[data-i]").forEach((b) => b.onclick = () => { parteRel = "hora"; definirData(opcoes[+b.dataset.i][1]); });
+}
+montarAtalhos();
+setInterval(mostrarResumo, 30000);
 
 function atualizarBotao() {
   const b = $("enviar");
