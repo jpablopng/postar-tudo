@@ -56,7 +56,7 @@ jobs:
           DARKPOST_API_KEY: ${{ secrets.DARKPOST_API_KEY }}
           DARKPOST_ACCOUNT_ID: ${{ vars.DARKPOST_ACCOUNT_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
-          IG_USER_ID: ${{ vars.IG_USER_ID || '17841480314171732' }}
+          IG_USER_ID: ${{ vars.IG_USER_ID || (github.repository == 'jpablopng/postar-tudo' && '17841480314171732' || '') }}
           UPLOADPOST_API_KEY: ${{ secrets.UPLOADPOST_API_KEY }}
           UPLOADPOST_USER: ${{ secrets.UPLOADPOST_USER }}
 
