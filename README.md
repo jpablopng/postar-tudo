@@ -17,7 +17,7 @@ Quem posta:
 |---|---|---|
 | YouTube | DarkPost | grátis (plano Friends, 1000 posts/mês) |
 | TikTok | DarkPost | grátis |
-| Instagram | Upload-Post | grátis até 10 uploads/mês (opcional) |
+| Instagram | API oficial do Instagram | grátis (limite do Instagram: ~50 posts/dia) |
 
 O agendamento é feito aqui e não no DarkPost, porque o agendamento do DarkPost está com defeito. Para ele o post sempre chega como "postar agora", que funciona.
 
@@ -29,8 +29,8 @@ Em **Settings > Secrets and variables > Actions > New repository secret**:
 | Nome | Valor | Obrigatório |
 |---|---|---|
 | `DARKPOST_API_KEY` | chave gerada em darkpost.app > API > Generate Key | sim |
-| `UPLOADPOST_API_KEY` | chave do Upload-Post | só para Instagram |
-| `UPLOADPOST_USER` | nome do perfil no Upload-Post | só para Instagram |
+| `IG_ACCESS_TOKEN` | token do Instagram (passo 5) | para Instagram |
+| `GH_PAT` | o mesmo token da página, com a permissão extra **Secrets: Read and write** | para renovar o token do Instagram sozinho |
 
 ### 2. GitHub Pages
 **Settings > Pages > Source: Deploy from a branch > main / (root)**.
@@ -53,3 +53,19 @@ Se ele pegar a conta errada, crie em **Settings > Secrets and variables > Action
 - O repositório é público: o vídeo fica visível na branch até ser postado. Não agende vídeo que não pode vazar antes da hora.
 - Suba sempre o vídeo exportado limpo do CapCut. Marca d'água de outra rede derruba o alcance.
 - O TikTok aceita no máximo uns 15 posts por dia por conta.
+
+## 5. Instagram (API oficial, uma vez só)
+
+O Instagram precisa ser conta profissional (Criador de conteúdo ou Comercial).
+
+1. Entre em developers.facebook.com, clique em **My Apps > Create App**.
+2. Caso de uso: **Manage messaging & content on Instagram**. Siga até criar o app.
+3. No app, abra **Instagram > API setup with Instagram login**.
+4. Em **App roles > Roles**, adicione sua conta do Instagram como **Instagram Tester**.
+   No app do Instagram: **Configurações > Apps e sites > Convites de testador** e aceite.
+5. Volte em **API setup with Instagram login > Generate access tokens**, clique em **Add account**,
+   entre com o Instagram, permita tudo e clique em **Generate token**. Copie (aparece uma vez só).
+6. Cole no secret `IG_ACCESS_TOKEN`.
+
+O app pode ficar em modo de desenvolvimento: para postar na sua própria conta não precisa de revisão da Meta.
+O token vale 60 dias; o workflow `Renovar token do Instagram` renova sozinho nos dias 1 e 15, se o secret `GH_PAT` existir.

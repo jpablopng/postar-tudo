@@ -124,7 +124,6 @@
       <textarea id="leg_tiktok" placeholder="Vazio = usa a legenda de cima"></textarea>
     </div>
 
-    <label class="check"><input type="checkbox" id="ia"> Marcar como conteúdo feito com IA (Instagram)</label>
   </div>
 
   <div class="card">
@@ -242,7 +241,15 @@ function escolher(arq) {
 }
 
 // ---------------------------------------------------------- formulário
+// Lembra quais redes você marcou da última vez
+const redesSalvas = ler("postarTudo.redes", null);
+document.querySelectorAll(".rede input").forEach((cb) => {
+  if (redesSalvas) cb.checked = redesSalvas.includes(cb.value);
+  cb.parentElement.classList.toggle("on", cb.checked);
+});
+$("blocoTitulo").classList.toggle("hide", !redesMarcadas().includes("youtube"));
 document.querySelectorAll(".rede input").forEach((cb) => cb.onchange = () => {
+  gravar("postarTudo.redes", redesMarcadas());
   cb.parentElement.classList.toggle("on", cb.checked);
   $("blocoTitulo").classList.toggle("hide", !redesMarcadas().includes("youtube"));
   atualizarBotao();
@@ -347,7 +354,7 @@ $("enviar").onclick = async () => {
     redes,
     agendar: modo === "agendar" ? $("data").value + ":00" : null,
     fuso: "America/Sao_Paulo",
-    ia: $("ia").checked,
+    ia: false,
   };
 
   const id = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14) + "-" + Math.random().toString(36).slice(2, 6);

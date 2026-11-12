@@ -4,7 +4,8 @@ Posta um vídeo em uma rede.
 Uso:  python postador/postar.py <youtube|instagram|tiktok> <pasta_do_job>
 
 YouTube e TikTok vão pelo DarkPost (grátis, 1000 posts/mês).
-Instagram vai pelo Upload-Post (o DarkPost não tem Instagram).
+Instagram vai pela API oficial do Instagram (secret IG_ACCESS_TOKEN).
+Se esse secret não existir, tenta o Upload-Post (10 grátis por mês).
 
 O agendamento é feito pelo próprio repositório (postador/agendador.py), então
 aqui o post sempre sai "agora".
@@ -34,6 +35,8 @@ import requests
 
 DARKPOST = "https://darkpost.app/api/rest/providers"
 UPLOADPOST = "https://api.upload-post.com/api"
+GRAPH_IG = "https://graph.instagram.com/v23.0"
+RUPLOAD_IG = "https://rupload.facebook.com/ig-api-upload/v23.0"
 REDES = ("youtube", "instagram", "tiktok")
 
 
@@ -159,7 +162,61 @@ def postar_darkpost(rede, job, video):
         log(f"{rede} ok: {item.get('linkVideo') or item.get('postId') or 'publicado'}")
 
 
-# ---------------------------------------------------------------- Upload-Post (Instagram)
+# ---------------------------------------------------------------- Instagram (API oficial)
+
+def postar_instagram(job, video):
+    token = precisa("IG_ACCESS_TOKEN")
+    cab = {"Authorization": f"Bearer {token}"}
+
+    eu = requests.get(f"{GRAPH_IG}/me", headers=cab, params={"fields": "user_id,username"}, timeout=30)
+    if eu.status_code in (400, 401, 403):
+        erro(f"Instagram recusou o token (pode ter vencido). Gere outro no painel da Meta e atualize o secret IG_ACCESS_TOKEN. Resposta: {eu.text[:300]}")
+    eu.raise_for_status()
+    ig_id = eu.json()["user_id"]
+    log(f"Instagram: conta @{eu.json().get('username')}")
+
+    # 1) cria o container do Reels para upload direto do arquivo
+    dados = {"media_type": "REELS", "upload_type": "resumable", "caption": legenda_de(job, "instagram"), "share_to_feed": "true"}
+    r = requests.post(f"{GRAPH_IG}/{ig_id}/media", headers=cab, data=dados, timeout=60)
+    if not r.ok:
+        erro(f"Instagram: erro ao criar o post: {r.text[:500]}")
+    container = r.json()["id"]
+
+    # 2) envia o arquivo
+    log("Subindo o vídeo para o Instagram...")
+    with open(video, "rb") as f:
+        r = requests.post(
+            f"{RUPLOAD_IG}/{container}",
+            headers={"Authorization": f"OAuth {token}", "offset": "0", "file_size": str(video.stat().st_size)},
+            data=f,
+            timeout=900,
+        )
+    if not r.ok:
+        erro(f"Instagram: erro no upload: {r.text[:500]}")
+
+    # 3) espera o Instagram processar (até 15 min)
+    for _ in range(90):
+        time.sleep(10)
+        s = requests.get(f"{GRAPH_IG}/{container}", headers=cab, params={"fields": "status_code,status"}, timeout=30).json()
+        codigo = s.get("status_code")
+        log(f"Instagram processando: {codigo}")
+        if codigo == "FINISHED":
+            break
+        if codigo in ("ERROR", "EXPIRED"):
+            erro(f"Instagram recusou o vídeo: {s.get('status')}. Confira se é MP4 vertical, 3 a 90 s.")
+    else:
+        erro("Instagram demorou demais para processar o vídeo.")
+
+    # 4) publica
+    r = requests.post(f"{GRAPH_IG}/{ig_id}/media_publish", headers=cab, data={"creation_id": container}, timeout=60)
+    if not r.ok:
+        erro(f"Instagram: erro ao publicar: {r.text[:500]}")
+    media_id = r.json().get("id")
+    link = requests.get(f"{GRAPH_IG}/{media_id}", headers=cab, params={"fields": "permalink"}, timeout=30).json().get("permalink")
+    log(f"instagram ok: {link or media_id}")
+
+
+# ---------------------------------------------------------------- Upload-Post (Instagram, alternativa)
 
 def postar_uploadpost(rede, job, video):
     chave = precisa("UPLOADPOST_API_KEY")
@@ -237,7 +294,10 @@ def main():
 
     log(f"Postando {video.name} ({video.stat().st_size / 1e6:.1f} MB) no {rede}")
     if rede == "instagram":
-        postar_uploadpost(rede, job, video)
+        if os.environ.get("IG_ACCESS_TOKEN", "").strip():
+            postar_instagram(job, video)
+        else:
+            postar_uploadpost(rede, job, video)
     else:
         postar_darkpost(rede, job, video)
 
