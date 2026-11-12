@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Postar Tudo</title>
+<style>
+  :root {
+    --bg: #0e0f13; --card: #17191f; --line: #262932; --text: #eceef3; --dim: #8b90a0;
+    --accent: #7c5cff; --ok: #2fbf71; --bad: #ff5c6c; --warn: #f5b942;
+    --yt: #ff3d3d; --ig: #e1306c; --tt: #25f4ee;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.3px; }
+  h1 span { color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  label { display: block; font-size: 13px; color: var(--dim); margin: 12px 0 6px; }
+  label:first-child { margin-top: 0; }
+  input[type=text], input[type=password], input[type=datetime-local], textarea {
+    width: 100%; background: #0f1116; border: 1px solid var(--line); border-radius: 10px; color: var(--text);
+    padding: 10px 12px; font: inherit; font-size: 14px; outline: none;
+  }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+  .count { float: right; font-size: 12px; color: var(--dim); }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 10px; }
+  .btn { background: var(--accent); color: #fff; padding: 13px 18px; font-weight: 600; font-size: 15px; width: 100%; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .ghost { background: transparent; color: var(--dim); border: 1px solid var(--line); padding: 8px 12px; font-size: 13px; }
+  .ghost:hover { color: var(--text); }
+
+  #drop { border: 2px dashed var(--line); border-radius: 14px; padding: 28px; text-align: center; color: var(--dim); cursor: pointer; transition: .15s; }
+  #drop.over { border-color: var(--accent); color: var(--text); }
+  #drop strong { color: var(--text); }
+  #preview { display: none; gap: 14px; align-items: flex-start; }
+  #preview video { width: 120px; max-height: 214px; border-radius: 10px; background: #000; }
+  #preview .info { flex: 1; font-size: 14px; }
+  #preview .info .nome { font-weight: 600; word-break: break-all; }
+
+  .redes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .rede { margin: 0 !important; color: var(--text) !important; display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line); cursor: pointer; user-select: none; font-size: 14px; }
+  .rede input { display: none; }
+  .rede .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+  .rede.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+  .rede.on .dot { background: var(--c); }
+
+  .seg { display: flex; background: #0f1116; border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+  .seg button { flex: 1; background: transparent; color: var(--dim); padding: 9px; font-size: 14px; }
+  .seg button.on { background: var(--line); color: var(--text); }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--text); margin-top: 12px; cursor: pointer; }
+  .hide { display: none !important; }
+
+  .status { display: grid; gap: 8px; }
+  .st { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #0f1116; border-radius: 10px; font-size: 14px; }
+  .st .nome { flex: 1; }
+  .badge { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--line); color: var(--dim); }
+  .badge.ok { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
+  .badge.bad { background: color-mix(in srgb, var(--bad) 20%, transparent); color: var(--bad); }
+  .badge.run { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .bar { height: 6px; background: #0f1116; border-radius: 99px; overflow: hidden; margin: 10px 0 4px; }
+  .bar div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .msg { font-size: 13px; color: var(--dim); }
+  .msg.bad { color: var(--bad); }
+  a { color: var(--accent); }
+  .hist { font-size: 13px; }
+  .hist .item { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); align-items: center; }
+  .hist .item:first-child { border-top: 0; }
+  .hist .t { flex: 1; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  dialog { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 14px; width: min(520px, 92vw); padding: 20px; }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  .small { font-size: 12px; color: var(--dim); line-height: 1.5; margin-top: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Postar <span>Tudo</span></h1>
+    <button class="ghost" id="abrirConfig">Configurar</button>
+  </header>
+
+  <div class="card">
+    <div id="drop">
+      <div><strong>Arraste o vídeo aqui</strong> ou clique para escolher</div>
+      <div class="small">MP4 ou MOV vertical, até 70 MB</div>
+    </div>
+    <input type="file" id="arquivo" accept="video/mp4,video/quicktime,video/webm" hidden>
+    <div id="preview">
+      <video id="player" muted playsinline controls></video>
+      <div class="info">
+        <div class="nome" id="nomeVideo"></div>
+        <div class="msg" id="infoVideo"></div>
+        <button class="ghost" id="trocar" style="margin-top:10px">Trocar vídeo</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <label>Onde postar</label>
+    <div class="redes">
+      <label class="rede on" style="--c:var(--yt)"><input type="checkbox" value="youtube" checked><span class="dot"></span>YouTube Shorts</label>
+      <label class="rede on" style="--c:var(--ig)"><input type="checkbox" value="instagram" checked><span class="dot"></span>Instagram Reels</label>
+      <label class="rede on" style="--c:var(--tt)"><input type="checkbox" value="tiktok" checked><span class="dot"></span>TikTok</label>
+    </div>
+
+    <div id="blocoTitulo">
+      <label>Título do YouTube <span class="count" id="cTitulo">0/100</span></label>
+      <input type="text" id="titulo" maxlength="100" placeholder="Ex.: Ele descobriu o poder escondido...">
+    </div>
+
+    <label>Legenda <span class="count" id="cLegenda">0</span></label>
+    <textarea id="legenda" placeholder="Legenda com hashtags, usada em todas as redes"></textarea>
+
+    <label class="check"><input type="checkbox" id="porRede"> Usar legenda diferente em cada rede</label>
+    <div id="legendasRede" class="hide">
+      <label>Descrição do YouTube</label>
+      <textarea id="leg_youtube" placeholder="Vazio = usa a legenda de cima"></textarea>
+      <label>Legenda do Instagram</label>
+      <textarea id="leg_instagram" placeholder="Vazio = usa a legenda de cima"></textarea>
+      <label>Legenda do TikTok</label>
+      <textarea id="leg_tiktok" placeholder="Vazio = usa a legenda de cima"></textarea>
+    </div>
+
+    <label class="check"><input type="checkbox" id="ia"> Marcar como conteúdo feito com IA (TikTok e Instagram)</label>
+  </div>
+
+  <div class="card">
+    <label>Quando</label>
+    <div class="seg">
+      <button id="modoAgora" class="on">Postar agora</button>
+      <button id="modoAgendar">Agendar</button>
+    </div>
+    <div id="blocoData" class="hide">
+      <label>Data e hora (horário de Brasília)</label>
+      <input type="datetime-local" id="data">
+    </div>
+  </div>
+
+  <button class="btn" id="enviar" disabled>Postar agora</button>
+
+  <div class="card hide" id="painel" style="margin-top:14px">
+    <div class="msg" id="etapa">Preparando...</div>
+    <div class="bar"><div id="barra"></div></div>
+    <div class="status" id="status"></div>
+    <div class="msg" id="linkRun" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card hist" id="historico"></div>
+</main>
+
+<dialog id="config">
+  <h3 style="margin-top:0">Configurar</h3>
+  <label>Repositório (dono/nome)</label>
+  <input type="text" id="cfgRepo" placeholder="jpablopng/postar-tudo">
+  <label>Token do GitHub</label>
+  <input type="password" id="cfgToken" placeholder="github_pat_...">
+  <div class="small">
+    Crie em github.com/settings/personal-access-tokens (fine-grained), só para este repositório, com
+    <b>Contents: Read and write</b> e <b>Actions: Read</b>. Ele fica salvo só neste navegador.
+    A chave do Upload-Post fica nos Secrets do repositório, não aqui.
+  </div>
+  <div class="row" style="margin-top:16px; justify-content:flex-end">
+    <button class="ghost" id="cfgCancelar">Cancelar</button>
+    <button class="btn" style="width:auto" id="cfgSalvar">Salvar</button>
+  </div>
+</dialog>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const NOMES = { youtube: "YouTube Shorts", instagram: "Instagram Reels", tiktok: "TikTok" };
+const LIMITE_MB = 70;
+
+// ---------------------------------------------------------- armazenamento local
+function ler(chave, padrao) {
+  try { const v = localStorage.getItem(chave); return v === null ? padrao : JSON.parse(v); } catch { return padrao; }
+}
+function gravar(chave, valor) {
+  try { localStorage.setItem(chave, JSON.stringify(valor)); } catch {}
+}
+
+function repoPadrao() {
+  // Em jpablopng.github.io/postar-tudo => jpablopng/postar-tudo
+  const host = location.hostname;
+  if (host.endsWith(".github.io")) {
+    const dono = host.replace(".github.io", "");
+    const nome = location.pathname.split("/").filter(Boolean)[0];
+    if (nome) return `${dono}/${nome}`;
+  }
+  return "jpablopng/postar-tudo";
+}
+
+let cfg = ler("postarTudo.cfg", { repo: repoPadrao(), token: "" });
+let video = null;
+let modo = "agora";
+
+// ---------------------------------------------------------- configuração
+$("abrirConfig").onclick = abrirConfig;
+function abrirConfig() {
+  $("cfgRepo").value = cfg.repo || repoPadrao();
+  $("cfgToken").value = cfg.token || "";
+  $("config").showModal();
+}
+$("cfgCancelar").onclick = () => $("config").close();
+$("cfgSalvar").onclick = () => {
+  cfg = { repo: $("cfgRepo").value.trim(), token: $("cfgToken").value.trim() };
+  gravar("postarTudo.cfg", cfg);
+  $("config").close();
+  atualizarBotao();
+};
+
+// ---------------------------------------------------------- vídeo
+const drop = $("drop");
+drop.onclick = () => $("arquivo").click();
+$("trocar").onclick = () => $("arquivo").click();
+$("arquivo").onchange = (e) => e.target.files[0] && escolher(e.target.files[0]);
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => e.dataTransfer.files[0] && escolher(e.dataTransfer.files[0]));
+
+function escolher(arq) {
+  if (!arq.type.startsWith("video/")) return alert("Isso não é um vídeo.");
+  const mb = arq.size / 1024 / 1024;
+  if (mb > LIMITE_MB) return alert(`O vídeo tem ${mb.toFixed(0)} MB. O limite é ${LIMITE_MB} MB (limite do GitHub). Exporte com bitrate menor.`);
+  video = arq;
+  const player = $("player");
+  player.src = URL.createObjectURL(arq);
+  player.onloadedmetadata = () => {
+    const vertical = player.videoHeight > player.videoWidth;
+    $("infoVideo").innerHTML = `${mb.toFixed(1)} MB · ${Math.round(player.duration)}s · ${player.videoWidth}x${player.videoHeight}` +
+      (vertical ? "" : `<br><span style="color:var(--warn)">Atenção: o vídeo não é vertical.</span>`);
+  };
+  $("nomeVideo").textContent = arq.name;
+  drop.classList.add("hide");
+  $("preview").style.display = "flex";
+  atualizarBotao();
+}
+
+// ---------------------------------------------------------- formulário
+document.querySelectorAll(".rede input").forEach((cb) => cb.onchange = () => {
+  cb.parentElement.classList.toggle("on", cb.checked);
+  $("blocoTitulo").classList.toggle("hide", !redesMarcadas().includes("youtube"));
+  atualizarBotao();
+});
+function redesMarcadas() {
+  return [...document.querySelectorAll(".rede input")].filter((c) => c.checked).map((c) => c.value);
+}
+$("titulo").oninput = () => { $("cTitulo").textContent = `${$("titulo").value.length}/100`; };
+$("legenda").oninput = () => { $("cLegenda").textContent = $("legenda").value.length; };
+$("porRede").onchange = () => $("legendasRede").classList.toggle("hide", !$("porRede").checked);
+
+$("modoAgora").onclick = () => trocarModo("agora");
+$("modoAgendar").onclick = () => trocarModo("agendar");
+function trocarModo(m) {
+  modo = m;
+  $("modoAgora").classList.toggle("on", m === "agora");
+  $("modoAgendar").classList.toggle("on", m === "agendar");
+  $("blocoData").classList.toggle("hide", m !== "agendar");
+  if (m === "agendar" && !$("data").value) {
+    const d = new Date(Date.now() + 60 * 60 * 1000);
+    d.setMinutes(0, 0, 0);
+    $("data").value = localISO(d);
+  }
+  $("data").min = localISO(new Date(Date.now() + 10 * 60 * 1000));
+  atualizarBotao();
+}
+function localISO(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+$("data").oninput = atualizarBotao;
+
+function atualizarBotao() {
+  const b = $("enviar");
+  b.textContent = modo === "agora" ? "Postar agora" : "Agendar";
+  b.disabled = !video || redesMarcadas().length === 0 || (modo === "agendar" && !$("data").value);
+}
+
+// ---------------------------------------------------------- GitHub API
+async function gh(caminho, opcoes = {}) {
+  const r = await fetch(`https://api.github.com/repos/${cfg.repo}${caminho}`, {
+    ...opcoes,
+    headers: {
+      Authorization: `Bearer ${cfg.token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(opcoes.body ? { "Content-Type": "application/json" } : {}),
+    },
+  });
+  if (!r.ok) {
+    let txt = await r.text();
+    if (r.status === 401) txt = "Token do GitHub inválido ou expirado.";
+    if (r.status === 403 || r.status === 404) txt = "Sem permissão no repositório. Confira o token (Contents: Read and write, Actions: Read) e o nome do repo.";
+    throw new Error(txt);
+  }
+  return r.status === 204 ? null : r.json();
+}
+
+function paraBase64(arq) {
+  return new Promise((ok, falha) => {
+    const fr = new FileReader();
+    fr.onload = () => ok(fr.result.split(",")[1]);
+    fr.onerror = () => falha(new Error("Não consegui ler o vídeo."));
+    fr.readAsDataURL(arq);
+  });
+}
+
+function enviarBlob(base64, aoProgredir) {
+  // XHR em vez de fetch para mostrar o progresso do envio
+  return new Promise((ok, falha) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", `https://api.github.com/repos/${cfg.repo}/git/blobs`);
+    x.setRequestHeader("Authorization", `Bearer ${cfg.token}`);
+    x.setRequestHeader("Accept", "application/vnd.github+json");
+    x.setRequestHeader("Content-Type", "application/json");
+    x.upload.onprogress = (e) => e.lengthComputable && aoProgredir(e.loaded / e.total);
+    x.onload = () => x.status < 300 ? ok(JSON.parse(x.responseText)) : falha(new Error(`GitHub recusou o vídeo (${x.status}): ${x.responseText.slice(0, 200)}`));
+    x.onerror = () => falha(new Error("Falha de rede ao enviar o vídeo."));
+    x.send(JSON.stringify({ content: base64, encoding: "base64" }));
+  });
+}
+
+// ---------------------------------------------------------- envio
+$("enviar").onclick = async () => {
+  if (!cfg.token || !cfg.repo) return abrirConfig();
+  const redes = redesMarcadas();
+  if (redes.includes("youtube") && !$("titulo").value.trim() && !$("legenda").value.trim()) {
+    if (!confirm("Sem título nem legenda. O YouTube vai receber o título 'Novo vídeo'. Continuar?")) return;
+  }
+  if (modo === "agendar" && new Date($("data").value) < new Date(Date.now() + 5 * 60 * 1000)) {
+    return alert("Escolha um horário pelo menos 5 minutos no futuro.");
+  }
+
+  const ext = (video.name.match(/\.(mp4|mov|webm)$/i) || [".mp4"])[0].toLowerCase();
+  const job = {
+    arquivo: "video" + ext,
+    titulo: $("titulo").value.trim(),
+    legenda: $("legenda").value.trim(),
+    legendas: $("porRede").checked ? {
+      youtube: $("leg_youtube").value.trim(), instagram: $("leg_instagram").value.trim(), tiktok: $("leg_tiktok").value.trim(),
+    } : {},
+    redes,
+    agendar: modo === "agendar" ? $("data").value + ":00" : null,
+    fuso: "America/Sao_Paulo",
+    ia: $("ia").checked,
+  };
+
+  const id = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14) + "-" + Math.random().toString(36).slice(2, 6);
+  const branch = `fila/${id}`;
+  $("enviar").disabled = true;
+  $("painel").classList.remove("hide");
+  $("linkRun").innerHTML = "";
+  desenharStatus(redes, {});
+  progresso(0);
+
+  try {
+    etapa("Lendo o vídeo...");
+    const base64 = await paraBase64(video);
+
+    etapa("Enviando o vídeo para o GitHub...");
+    const blobVideo = await enviarBlob(base64, (p) => progresso(p * 0.9));
+    const blobJob = await gh("/git/blobs", { method: "POST", body: JSON.stringify({ content: JSON.stringify(job, null, 2), encoding: "utf-8" }) });
+
+    etapa("Criando a fila...");
+    const main = await gh("/git/ref/heads/main");
+    const commitMain = await gh(`/git/commits/${main.object.sha}`);
+    const arvore = await gh("/git/trees", { method: "POST", body: JSON.stringify({
+      base_tree: commitMain.tree.sha,
+      tree: [
+        { path: `fila/${job.arquivo}`, mode: "100644", type: "blob", sha: blobVideo.sha },
+        { path: "fila/job.json", mode: "100644", type: "blob", sha: blobJob.sha },
+      ],
+    }) });
+    const commit = await gh("/git/commits", { method: "POST", body: JSON.stringify({
+      message: `Postar: ${(job.titulo || job.legenda || video.name).slice(0, 60)}`,
+      tree: arvore.sha, parents: [main.object.sha],
+    }) });
+    await gh("/git/refs", { method: "POST", body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: commit.sha }) });
+    progresso(1);
+
+    salvarHistorico({ id, branch, texto: job.titulo || job.legenda || video.name, redes, agendar: job.agendar, quando: Date.now() });
+    etapa(modo === "agora" ? "Postando nas redes (leva de 1 a 5 minutos)..." : "Agendando nas redes...");
+    await acompanhar(branch, redes, id);
+  } catch (e) {
+    etapa(e.message, true);
+  } finally {
+    atualizarBotao();
+  }
+};
+
+function etapa(txt, ruim) { $("etapa").textContent = txt; $("etapa").className = "msg" + (ruim ? " bad" : ""); }
+function progresso(p) { $("barra").style.width = `${Math.round(p * 100)}%`; }
+
+function desenharStatus(redes, estados) {
+  $("status").innerHTML = redes.map((r) => {
+    const e = estados[r] || { txt: "na fila", cls: "" };
+    return `<div class="st"><span class="nome">${NOMES[r]}</span><span class="badge ${e.cls}">${e.txt}</span></div>`;
+  }).join("");
+}
+
+function estadoJob(j) {
+  if (j.status !== "completed") return { txt: j.status === "in_progress" ? "enviando" : "na fila", cls: "run" };
+  if (j.conclusion === "success") return { txt: modo === "agendar" ? "agendado" : "postado", cls: "ok" };
+  return { txt: "falhou", cls: "bad" };
+}
+
+async function acompanhar(branch, redes, id) {
+  const fim = Date.now() + 30 * 60 * 1000;
+  let run = null;
+  while (Date.now() < fim) {
+    await new Promise((r) => setTimeout(r, 5000));
+    if (!run) {
+      const lista = await gh(`/actions/runs?branch=${encodeURIComponent(branch)}&event=push&per_page=5`);
+      run = lista.workflow_runs[0];
+      if (!run) continue;
+      $("linkRun").innerHTML = `<a href="${run.html_url}" target="_blank">Ver detalhes no GitHub</a>`;
+    }
+    const { jobs } = await gh(`/actions/runs/${run.id}/jobs?per_page=20`);
+    const estados = {};
+    jobs.filter((j) => redes.includes(j.name)).forEach((j) => estados[j.name] = estadoJob(j));
+    desenharStatus(redes, estados);
+
+    const doRede = jobs.filter((j) => redes.includes(j.name));
+    if (doRede.length === redes.length && doRede.every((j) => j.status === "completed")) {
+      const falhas = doRede.filter((j) => j.conclusion !== "success").map((j) => NOMES[j.name]);
+      if (falhas.length) etapa(`Falhou em: ${falhas.join(", ")}. Abra os detalhes para ver o motivo.`, true);
+      else etapa(modo === "agendar" ? "Agendado em todas as redes." : "Postado em todas as redes!");
+      atualizarHistorico(id, falhas.length ? "falhou em " + falhas.join(", ") : "ok", run.html_url);
+      return;
+    }
+    const prep = jobs.find((j) => j.name === "preparar");
+    if (prep && prep.conclusion === "failure") {
+      etapa("Erro ao ler o pedido. Abra os detalhes.", true);
+      return;
+    }
+  }
+  etapa("Está demorando mais que o normal. Confira pelo link do GitHub.", true);
+}
+
+// ---------------------------------------------------------- histórico
+function salvarHistorico(item) {
+  const h = ler("postarTudo.hist", []);
+  h.unshift({ ...item, resultado: "enviando" });
+  gravar("postarTudo.hist", h.slice(0, 15));
+  mostrarHistorico();
+}
+function atualizarHistorico(id, resultado, url) {
+  const h = ler("postarTudo.hist", []);
+  const i = h.find((x) => x.id === id);
+  if (i) { i.resultado = resultado; i.url = url; }
+  gravar("postarTudo.hist", h);
+  mostrarHistorico();
+}
+function mostrarHistorico() {
+  const h = ler("postarTudo.hist", []);
+  const el = $("historico");
+  if (!h.length) { el.classList.add("hide"); return; }
+  el.classList.remove("hide");
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  el.innerHTML = `<label>Últimos envios</label>` + h.map((x) => {
+    const data = new Date(x.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+    const ag = x.agendar ? ` · agendado p/ ${new Date(x.agendar).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}` : "";
+    const cls = x.resultado === "ok" ? "ok" : x.resultado === "enviando" ? "run" : "bad";
+    const link = x.url ? `<a href="${x.url}" target="_blank">ver</a>` : "";
+    return `<div class="item"><span class="t">${data}${ag} · ${esc(x.texto)}</span><span class="badge ${cls}">${esc(x.resultado)}</span>${link}</div>`;
+  }).join("");
+}
+
+mostrarHistorico();
+atualizarBotao();
+if (!cfg.token) setTimeout(abrirConfig, 300);
+</script>
+</body>
+</html>
