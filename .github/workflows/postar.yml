@@ -1,10 +1,13 @@
 name: Postar
 
-# A página (index.html) cria uma branch fila/<id> com o vídeo e o job.json.
-# Isso dispara este workflow, que posta nas redes em paralelo e apaga a branch no fim.
+# A página cria uma branch fila/<id> com o vídeo e o job.json.
+# Post imediato: o push já dispara a postagem.
+# Post agendado: a branch fica guardada e o agendador.yml dispara este
+# workflow (workflow_dispatch) quando chegar a hora.
 on:
   push:
     branches: ["fila/**"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,13 +18,23 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       redes: ${{ steps.job.outputs.redes }}
+      agora: ${{ steps.job.outputs.agora }}
     steps:
       - uses: actions/checkout@v4
       - id: job
-        run: echo "redes=$(jq -c '.redes' fila/job.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "redes=$(jq -c '.redes' fila/job.json)" >> "$GITHUB_OUTPUT"
+          AGENDAR=$(jq -r '.agendar // empty' fila/job.json)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ -z "$AGENDAR" ]; then
+            echo "agora=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "agora=false" >> "$GITHUB_OUTPUT"
+            echo "Agendado para $AGENDAR. O agendador vai postar na hora." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   postar:
     needs: ler
+    if: needs.ler.outputs.agora == 'true'
     name: ${{ matrix.rede }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -40,12 +53,14 @@ jobs:
       - name: Postar no ${{ matrix.rede }}
         run: python postador/postar.py "${{ matrix.rede }}" fila
         env:
+          DARKPOST_API_KEY: ${{ secrets.DARKPOST_API_KEY }}
+          DARKPOST_ACCOUNT_ID: ${{ vars.DARKPOST_ACCOUNT_ID }}
           UPLOADPOST_API_KEY: ${{ secrets.UPLOADPOST_API_KEY }}
           UPLOADPOST_USER: ${{ secrets.UPLOADPOST_USER }}
 
   limpar:
     needs: [ler, postar]
-    if: always()
+    if: always() && needs.ler.outputs.agora == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Apagar a branch do vídeo

@@ -102,7 +102,7 @@
     <label>Onde postar</label>
     <div class="redes">
       <label class="rede on" style="--c:var(--yt)"><input type="checkbox" value="youtube" checked><span class="dot"></span>YouTube Shorts</label>
-      <label class="rede on" style="--c:var(--ig)"><input type="checkbox" value="instagram" checked><span class="dot"></span>Instagram Reels</label>
+      <label class="rede" style="--c:var(--ig)"><input type="checkbox" value="instagram"><span class="dot"></span>Instagram Reels</label>
       <label class="rede on" style="--c:var(--tt)"><input type="checkbox" value="tiktok" checked><span class="dot"></span>TikTok</label>
     </div>
 
@@ -124,7 +124,7 @@
       <textarea id="leg_tiktok" placeholder="Vazio = usa a legenda de cima"></textarea>
     </div>
 
-    <label class="check"><input type="checkbox" id="ia"> Marcar como conteúdo feito com IA (TikTok e Instagram)</label>
+    <label class="check"><input type="checkbox" id="ia"> Marcar como conteúdo feito com IA (Instagram)</label>
   </div>
 
   <div class="card">
@@ -136,6 +136,7 @@
     <div id="blocoData" class="hide">
       <label>Data e hora (horário de Brasília)</label>
       <input type="datetime-local" id="data">
+      <div class="small">O GitHub confere a fila a cada 15 minutos, então o post pode sair alguns minutos depois do horário.</div>
     </div>
   </div>
 
@@ -148,6 +149,7 @@
     <div class="msg" id="linkRun" style="margin-top:10px"></div>
   </div>
 
+  <div class="card hist hide" id="agendados" style="margin-top:14px"></div>
   <div class="card hist" id="historico"></div>
 </main>
 
@@ -208,6 +210,7 @@ $("cfgSalvar").onclick = () => {
   cfg = { repo: $("cfgRepo").value.trim(), token: $("cfgToken").value.trim() };
   gravar("postarTudo.cfg", cfg);
   $("config").close();
+  carregarAgendados();
   atualizarBotao();
 };
 
@@ -382,7 +385,7 @@ $("enviar").onclick = async () => {
 
     salvarHistorico({ id, branch, texto: job.titulo || job.legenda || video.name, redes, agendar: job.agendar, quando: Date.now() });
     etapa(modo === "agora" ? "Postando nas redes (leva de 1 a 5 minutos)..." : "Agendando nas redes...");
-    await acompanhar(branch, redes, id);
+    await acompanhar(branch, redes, id, !!job.agendar);
   } catch (e) {
     etapa(e.message, true);
   } finally {
@@ -402,11 +405,11 @@ function desenharStatus(redes, estados) {
 
 function estadoJob(j) {
   if (j.status !== "completed") return { txt: j.status === "in_progress" ? "enviando" : "na fila", cls: "run" };
-  if (j.conclusion === "success") return { txt: modo === "agendar" ? "agendado" : "postado", cls: "ok" };
+  if (j.conclusion === "success") return { txt: "postado", cls: "ok" };
   return { txt: "falhou", cls: "bad" };
 }
 
-async function acompanhar(branch, redes, id) {
+async function acompanhar(branch, redes, id, agendado) {
   const fim = Date.now() + 30 * 60 * 1000;
   let run = null;
   while (Date.now() < fim) {
@@ -431,6 +434,15 @@ async function acompanhar(branch, redes, id) {
       return;
     }
     const prep = jobs.find((j) => j.name === "preparar");
+    if (agendado && prep && prep.conclusion === "success") {
+      const est = {};
+      redes.forEach((r) => est[r] = { txt: "agendado", cls: "ok" });
+      desenharStatus(redes, est);
+      etapa("Agendado! O vídeo fica guardado e sai na hora marcada.");
+      atualizarHistorico(id, "agendado", run.html_url);
+      carregarAgendados();
+      return;
+    }
     if (prep && prep.conclusion === "failure") {
       etapa("Erro ao ler o pedido. Abra os detalhes.", true);
       return;
@@ -462,13 +474,52 @@ function mostrarHistorico() {
   el.innerHTML = `<label>Últimos envios</label>` + h.map((x) => {
     const data = new Date(x.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
     const ag = x.agendar ? ` · agendado p/ ${new Date(x.agendar).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}` : "";
-    const cls = x.resultado === "ok" ? "ok" : x.resultado === "enviando" ? "run" : "bad";
+    const cls = ["ok", "agendado"].includes(x.resultado) ? "ok" : x.resultado === "enviando" ? "run" : "bad";
     const link = x.url ? `<a href="${x.url}" target="_blank">ver</a>` : "";
     return `<div class="item"><span class="t">${data}${ag} · ${esc(x.texto)}</span><span class="badge ${cls}">${esc(x.resultado)}</span>${link}</div>`;
   }).join("");
 }
 
+// ---------------------------------------------------------- agendados
+async function carregarAgendados() {
+  const el = $("agendados");
+  if (!cfg.token || !cfg.repo) return;
+  try {
+    const refs = await gh("/git/matching-refs/heads/fila/");
+    const itens = [];
+    for (const ref of refs) {
+      const branch = ref.ref.replace("refs/heads/", "");
+      try {
+        const arq = await gh(`/contents/fila/job.json?ref=${encodeURIComponent(branch)}`);
+        const bytes = Uint8Array.from(atob(arq.content.replace(/\n/g, "")), (c) => c.charCodeAt(0));
+        const job = JSON.parse(new TextDecoder().decode(bytes));
+        if (job.agendar) itens.push({ branch, job });
+      } catch {}
+    }
+    itens.sort((a, b) => a.job.agendar.localeCompare(b.job.agendar));
+    if (!itens.length) { el.classList.add("hide"); return; }
+    el.classList.remove("hide");
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    el.innerHTML = `<label>Agendados (${itens.length})</label>` + itens.map(({ branch, job }) => {
+      const quando = new Date(job.agendar).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+      const redes = job.redes.map((r) => NOMES[r].split(" ")[0]).join(", ");
+      return `<div class="item"><span class="t"><b style="color:var(--text)">${quando}</b> · ${redes} · ${esc(job.titulo || job.legenda || "sem título")}</span>
+        <button class="ghost" data-cancelar="${esc(branch)}">cancelar</button></div>`;
+    }).join("");
+    el.querySelectorAll("[data-cancelar]").forEach((b) => b.onclick = async () => {
+      b.disabled = true; b.textContent = "cancelando...";
+      try {
+        await gh(`/git/refs/heads/${b.dataset.cancelar}`, { method: "DELETE" });
+        carregarAgendados();
+      } catch (e) { b.textContent = "erro"; alert(e.message); }
+    });
+  } catch (e) {
+    el.classList.add("hide");
+  }
+}
+
 mostrarHistorico();
+carregarAgendados();
 atualizarBotao();
 if (!cfg.token) setTimeout(abrirConfig, 300);
 </script>
