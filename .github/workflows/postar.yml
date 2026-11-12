@@ -54,7 +54,7 @@ jobs:
         run: python postador/postar.py "${{ matrix.rede }}" fila
         env:
           DARKPOST_API_KEY: ${{ secrets.DARKPOST_API_KEY }}
-          DARKPOST_ACCOUNT_ID: ${{ vars.DARKPOST_ACCOUNT_ID }}
+          DARKPOST_ACCOUNT_ID: ${{ vars.DARKPOST_ACCOUNT_ID || (github.repository == 'jpablopng/postar-tudo' && 'cmw8r1b8304bnpd1r2q0jq4yl' || '') }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_USER_ID: ${{ vars.IG_USER_ID || (github.repository == 'jpablopng/postar-tudo' && '17841480314171732' || '') }}
           UPLOADPOST_API_KEY: ${{ secrets.UPLOADPOST_API_KEY }}

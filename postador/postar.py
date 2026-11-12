@@ -112,11 +112,10 @@ def escolher_conta(chave, rede):
         return {k: c.get(k) for k in ("id", "name", "username", "provider", "platform", "providerIdentifier") if c.get(k)}
     log("Contas no DarkPost: " + json.dumps([resumo(c) for c in contas], ensure_ascii=False))
 
-    # Prefere a conta da mesma rede, se a API informar a rede de cada conta
-    for c in contas:
-        texto = json.dumps(c).lower()
-        if rede in texto and c.get("id"):
-            return c["id"]
+    # Com mais de um perfil, nunca adivinhar: o vídeo poderia sair na conta de outra pessoa
+    if len(contas) > 1:
+        erro("O DarkPost tem mais de um perfil. Crie a variável DARKPOST_ACCOUNT_ID no repositório "
+             "(Settings > Secrets and variables > Actions > Variables) com o id do perfil certo, listado acima.")
     return contas[0]["id"]
 
 
