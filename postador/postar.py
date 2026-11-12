@@ -36,6 +36,7 @@ import requests
 DARKPOST = "https://darkpost.app/api/rest/providers"
 UPLOADPOST = "https://api.upload-post.com/api"
 GRAPH_IG = "https://graph.instagram.com/v23.0"
+GRAPH_FB = "https://graph.facebook.com/v23.0"
 RUPLOAD_IG = "https://rupload.facebook.com/ig-api-upload/v23.0"
 REDES = ("youtube", "instagram", "tiktok")
 
@@ -165,19 +166,34 @@ def postar_darkpost(rede, job, video):
 # ---------------------------------------------------------------- Instagram (API oficial)
 
 def postar_instagram(job, video):
-    token = precisa("IG_ACCESS_TOKEN")
+    token = "".join(precisa("IG_ACCESS_TOKEN").split())  # tira espaços e quebras de linha coladas sem querer
     cab = {"Authorization": f"Bearer {token}"}
 
-    eu = requests.get(f"{GRAPH_IG}/me", headers=cab, params={"fields": "user_id,username"}, timeout=30)
-    if eu.status_code in (400, 401, 403):
-        erro(f"Instagram recusou o token (pode ter vencido). Gere outro no painel da Meta e atualize o secret IG_ACCESS_TOKEN. Resposta: {eu.text[:300]}")
-    eu.raise_for_status()
-    ig_id = eu.json()["user_id"]
-    log(f"Instagram: conta @{eu.json().get('username')}")
+    # Token "IG..." (login do Instagram) usa graph.instagram.com.
+    # Token "EA..." (login unificado / usuário do sistema) usa graph.facebook.com.
+    if token.startswith("IG"):
+        graph = GRAPH_IG
+        log("Instagram: token do tipo login do Instagram")
+        eu = requests.get(f"{graph}/me", headers=cab, params={"fields": "user_id,username"}, timeout=30)
+        if not eu.ok:
+            erro(f"Instagram recusou o token. Gere outro no painel da Meta e atualize o secret IG_ACCESS_TOKEN. Resposta: {eu.text[:300]}")
+        ig_id = eu.json()["user_id"]
+        nome = eu.json().get("username")
+    else:
+        graph = GRAPH_FB
+        log(f"Instagram: token do tipo Facebook/sistema (começa com {token[:2]}), tamanho {len(token)}")
+        ig_id = os.environ.get("IG_USER_ID", "").strip()
+        if not ig_id:
+            erro("Falta IG_USER_ID (id da conta do Instagram que aparece no painel da Meta).")
+        eu = requests.get(f"{graph}/{ig_id}", headers=cab, params={"fields": "username"}, timeout=30)
+        if not eu.ok:
+            erro(f"Instagram recusou o token. Gere outro no painel da Meta e atualize o secret IG_ACCESS_TOKEN. Resposta: {eu.text[:300]}")
+        nome = eu.json().get("username")
+    log(f"Instagram: conta @{nome}")
 
     # 1) cria o container do Reels para upload direto do arquivo
     dados = {"media_type": "REELS", "upload_type": "resumable", "caption": legenda_de(job, "instagram"), "share_to_feed": "true"}
-    r = requests.post(f"{GRAPH_IG}/{ig_id}/media", headers=cab, data=dados, timeout=60)
+    r = requests.post(f"{graph}/{ig_id}/media", headers=cab, data=dados, timeout=60)
     if not r.ok:
         erro(f"Instagram: erro ao criar o post: {r.text[:500]}")
     container = r.json()["id"]
@@ -197,7 +213,7 @@ def postar_instagram(job, video):
     # 3) espera o Instagram processar (até 15 min)
     for _ in range(90):
         time.sleep(10)
-        s = requests.get(f"{GRAPH_IG}/{container}", headers=cab, params={"fields": "status_code,status"}, timeout=30).json()
+        s = requests.get(f"{graph}/{container}", headers=cab, params={"fields": "status_code,status"}, timeout=30).json()
         codigo = s.get("status_code")
         log(f"Instagram processando: {codigo}")
         if codigo == "FINISHED":
@@ -208,11 +224,11 @@ def postar_instagram(job, video):
         erro("Instagram demorou demais para processar o vídeo.")
 
     # 4) publica
-    r = requests.post(f"{GRAPH_IG}/{ig_id}/media_publish", headers=cab, data={"creation_id": container}, timeout=60)
+    r = requests.post(f"{graph}/{ig_id}/media_publish", headers=cab, data={"creation_id": container}, timeout=60)
     if not r.ok:
         erro(f"Instagram: erro ao publicar: {r.text[:500]}")
     media_id = r.json().get("id")
-    link = requests.get(f"{GRAPH_IG}/{media_id}", headers=cab, params={"fields": "permalink"}, timeout=30).json().get("permalink")
+    link = requests.get(f"{graph}/{media_id}", headers=cab, params={"fields": "permalink"}, timeout=30).json().get("permalink")
     log(f"instagram ok: {link or media_id}")
 
 

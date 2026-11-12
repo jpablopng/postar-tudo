@@ -18,6 +18,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           if [ -z "$IG_ACCESS_TOKEN" ]; then echo "Sem IG_ACCESS_TOKEN, nada a fazer."; exit 0; fi
+          case "$IG_ACCESS_TOKEN" in
+            IG*) ;;
+            *) echo "Token do tipo Facebook/sistema: esse tipo não usa esta renovação."; exit 0 ;;
+          esac
           if [ -z "$GH_TOKEN" ]; then echo "::error::Falta o secret GH_PAT para salvar o token novo."; exit 1; fi
           RESP=$(curl -s "https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=$IG_ACCESS_TOKEN")
           NOVO=$(echo "$RESP" | jq -r '.access_token // empty')
