@@ -1,10 +1,10 @@
 name: Agendador
 
-# Confere a cada 15 minutos se algum vídeo agendado chegou na hora.
-# Obs.: o GitHub pode atrasar esse relógio alguns minutos em horário de pico.
+# Reserva: confere de hora em hora se algum agendado ficou para trás.
+# O agendamento normal é feito pelo próprio postar.yml (job "esperar").
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "7 * * * *"
   workflow_dispatch:
 
 permissions:

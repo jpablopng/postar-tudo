@@ -1,14 +1,15 @@
 """
-Roda a cada 15 minutos pelo GitHub Actions (agendador.yml).
+Reserva do agendamento (agendador.yml, de hora em hora).
 
-Procura as branches fila/... que estão esperando um horário agendado.
-Quando chega a hora, dispara o workflow "Postar" naquela branch.
+O normal é o próprio workflow "Postar" esperar até a hora. Se essa espera
+for interrompida, este script acha posts atrasados nas branches fila/... e
+dispara o "Postar" de novo, desde que não haja nenhuma execução ativa.
 """
 
 import base64
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import requests
@@ -38,9 +39,9 @@ def branches_na_fila():
         pagina += 1
 
 
-def ja_disparado(branch):
-    runs = gh("GET", "/actions/workflows/postar.yml/runs", params={"branch": branch, "event": "workflow_dispatch", "per_page": 5})
-    return runs["total_count"] > 0
+def tem_execucao_ativa(branch):
+    runs = gh("GET", "/actions/workflows/postar.yml/runs", params={"branch": branch, "per_page": 20})
+    return any(r["status"] != "completed" for r in runs["workflow_runs"])
 
 
 def main():
@@ -57,12 +58,11 @@ def main():
             continue  # post imediato, o próprio push já cuida
         hora = datetime.fromisoformat(job["agendar"]).replace(tzinfo=ZoneInfo(job.get("fuso") or "America/Sao_Paulo"))
 
-        # Dispara até 5 min antes, porque o post leva alguns minutos
-        if hora - timedelta(minutes=5) > agora:
+        if hora > agora:
             print(f"{branch}: agendado para {job['agendar']}, ainda não")
             continue
-        if ja_disparado(branch):
-            print(f"{branch}: já disparado, esperando terminar")
+        if tem_execucao_ativa(branch):
+            print(f"{branch}: já tem execução ativa (esperando ou postando)")
             continue
 
         gh("POST", "/actions/workflows/postar.yml/dispatches", json={"ref": branch})

@@ -1,9 +1,11 @@
 name: Postar
 
-# A página cria uma branch fila/<id> com o vídeo e o job.json.
-# Post imediato: o push já dispara a postagem.
-# Post agendado: a branch fica guardada e o agendador.yml dispara este
-# workflow (workflow_dispatch) quando chegar a hora.
+# A página cria uma branch fila/<id> com o vídeo e o job.json, e o push dispara este workflow.
+# Post imediato: posta na hora.
+# Post agendado: o job "esperar" fica aguardando até o horário e então posta.
+#   O GitHub limita um job a 6 h; se faltar mais que isso, ele espera 5 h 40 min
+#   e dispara este workflow de novo para continuar esperando.
+# O agendador.yml é só uma reserva caso alguma espera seja interrompida.
 on:
   push:
     branches: ["fila/**"]
@@ -11,30 +13,94 @@ on:
 
 permissions:
   contents: write
+  actions: write
+
+concurrency:
+  group: postar-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   ler:
     name: preparar
     runs-on: ubuntu-latest
     outputs:
+      ok: ${{ steps.existe.outputs.ok }}
       redes: ${{ steps.job.outputs.redes }}
-      agora: ${{ steps.job.outputs.agora }}
+      hora: ${{ steps.job.outputs.hora }}
+      espera: ${{ steps.job.outputs.espera }}
     steps:
+      - id: existe
+        name: Conferir se o post ainda está na fila
+        run: |
+          if gh api "repos/${{ github.repository }}/git/ref/heads/${{ github.ref_name }}" >/dev/null 2>&1; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "Post cancelado ou já feito. Nada a fazer." >> "$GITHUB_STEP_SUMMARY"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
       - uses: actions/checkout@v5
+        if: steps.existe.outputs.ok == 'true'
       - id: job
+        if: steps.existe.outputs.ok == 'true'
         run: |
           echo "redes=$(jq -c '.redes' fila/job.json)" >> "$GITHUB_OUTPUT"
           AGENDAR=$(jq -r '.agendar // empty' fila/job.json)
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ -z "$AGENDAR" ]; then
-            echo "agora=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "agora=false" >> "$GITHUB_OUTPUT"
-            echo "Agendado para $AGENDAR. O agendador vai postar na hora." >> "$GITHUB_STEP_SUMMARY"
+          FUSO=$(jq -r '.fuso // "America/Sao_Paulo"' fila/job.json)
+          if [ -z "$AGENDAR" ]; then
+            echo "hora=0" >> "$GITHUB_OUTPUT"
+            echo "espera=0" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          HORA=$(TZ="$FUSO" date -d "${AGENDAR/T/ }" +%s)
+          ESPERA=$(( HORA - $(date +%s) ))
+          [ "$ESPERA" -lt 0 ] && ESPERA=0
+          echo "hora=$HORA" >> "$GITHUB_OUTPUT"
+          echo "espera=$ESPERA" >> "$GITHUB_OUTPUT"
+          echo "Agendado para $AGENDAR ($FUSO). Faltam $(( ESPERA / 60 )) minutos." >> "$GITHUB_STEP_SUMMARY"
+
+  esperar:
+    needs: ler
+    if: needs.ler.outputs.ok == 'true' && needs.ler.outputs.espera != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    outputs:
+      continuar: ${{ steps.dormir.outputs.continuar }}
+    steps:
+      - id: dormir
+        name: Esperar até a hora
+        run: |
+          MAX=20400   # 5 h 40 min
+          RESTA=$(( ${{ needs.ler.outputs.hora }} - $(date +%s) ))
+          if [ "$RESTA" -gt "$MAX" ]; then
+            echo "Faltam $(( RESTA / 60 )) min. Esperando 5 h 40 min e continuando em outra execução."
+            sleep "$MAX"
+            if gh api "repos/${{ github.repository }}/git/ref/heads/${{ github.ref_name }}" >/dev/null 2>&1; then
+              gh workflow run postar.yml --repo "${{ github.repository }}" --ref "${{ github.ref_name }}"
+            fi
+            echo "continuar=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$RESTA" -gt 0 ]; then
+            echo "Esperando $(( RESTA / 60 )) min."
+            sleep "$RESTA"
+          fi
+          # Se o post foi cancelado na página enquanto esperava, não posta
+          if gh api "repos/${{ github.repository }}/git/ref/heads/${{ github.ref_name }}" >/dev/null 2>&1; then
+            echo "continuar=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Cancelado durante a espera."
+            echo "continuar=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   postar:
-    needs: ler
-    if: needs.ler.outputs.agora == 'true'
+    needs: [ler, esperar]
+    if: >-
+      always() && needs.ler.outputs.ok == 'true' &&
+      (needs.ler.outputs.espera == '0' || needs.esperar.outputs.continuar == 'true')
     name: ${{ matrix.rede }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -61,8 +127,10 @@ jobs:
           UPLOADPOST_USER: ${{ secrets.UPLOADPOST_USER }}
 
   limpar:
-    needs: [ler, postar]
-    if: always() && needs.ler.outputs.agora == 'true'
+    needs: [ler, esperar, postar]
+    if: >-
+      always() && needs.ler.outputs.ok == 'true' &&
+      (needs.ler.outputs.espera == '0' || needs.esperar.outputs.continuar == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Apagar a branch do vídeo

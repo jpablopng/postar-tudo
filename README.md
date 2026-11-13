@@ -9,7 +9,7 @@ Exemplo no ar: https://jpablopng.github.io/postar-tudo/
 1. Você arrasta o vídeo, escreve título e legenda, marca as redes e escolhe "Postar agora" ou "Agendar" (calendário e relógio).
 2. A página guarda o vídeo numa branch temporária `fila/...` do repositório.
 3. **Postar agora:** o GitHub Actions roda **um job por rede, ao mesmo tempo**, e a página mostra o status de cada uma. No fim a branch é apagada.
-4. **Agendar:** a branch fica guardada. O workflow `Agendador` confere a cada 15 minutos e dispara a postagem na hora. Dá para ver e cancelar os agendados na página.
+4. **Agendar:** a branch fica guardada e o próprio workflow `Postar` espera até o horário (se faltar mais de 6 h, ele se reinicia sozinho para continuar esperando). O `Agendador` roda de hora em hora só como reserva. Dá para ver e cancelar os agendados na página.
 
 | Rede | Por onde | Custo |
 |---|---|---|
@@ -79,7 +79,7 @@ Mande um vídeo curto marcando só uma rede. Se falhar, clique em "Ver detalhes 
 ## Limites e cuidados
 
 - Vídeo de até 70 MB. Para o Instagram: vertical, de 5 a 90 segundos.
-- O agendado pode sair até uns 15 a 20 minutos depois do horário (o relógio do GitHub atrasa às vezes).
+- O agendado sai no horário, com 1 ou 2 minutos de atraso. Cada agendado ocupa uma das 20 máquinas simultâneas do GitHub grátis enquanto espera: até uns 15 agendados ao mesmo tempo fica tranquilo.
 - O repositório é público: o vídeo fica visível na branch até ser postado. Não agende nada que não pode vazar antes.
 - Suba o vídeo exportado limpo, sem marca d'água de outra rede.
 - O TikTok aceita no máximo uns 15 posts por dia por conta.
