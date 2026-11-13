@@ -100,6 +100,10 @@
   .msg.bad { color: var(--bad); }
   a { color: var(--accent); }
   .hist { font-size: 13px; }
+  .hist-topo { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .hist-topo label { margin: 0; }
+  .fechar { background: transparent; color: var(--dim); font-size: 22px; line-height: 1; width: 30px; height: 30px; border-radius: 8px; }
+  .fechar:hover { background: var(--line); color: var(--text); }
   .hist .item { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); align-items: center; }
   .hist .item:first-child { border-top: 0; }
   .hist .t { flex: 1; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -656,6 +660,7 @@ async function acompanhar(branch, redes, id, agendado) {
 function salvarHistorico(item) {
   const h = ler("postarTudo.hist", []);
   h.unshift({ ...item, resultado: "enviando" });
+  gravar("postarTudo.histFechado", false);  // envio novo: mostra a lista de novo
   gravar("postarTudo.hist", h.slice(0, 15));
   mostrarHistorico();
 }
@@ -669,16 +674,17 @@ function atualizarHistorico(id, resultado, url) {
 function mostrarHistorico() {
   const h = ler("postarTudo.hist", []);
   const el = $("historico");
-  if (!h.length) { el.classList.add("hide"); return; }
+  if (!h.length || ler("postarTudo.histFechado", false)) { el.classList.add("hide"); return; }
   el.classList.remove("hide");
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  el.innerHTML = `<label>Últimos envios</label>` + h.map((x) => {
+  el.innerHTML = `<div class="hist-topo"><label>Últimos envios</label><button type="button" class="fechar" id="fecharHist" title="Fechar" aria-label="Fechar">&times;</button></div>` + h.map((x) => {
     const data = new Date(x.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
     const ag = x.agendar ? ` · agendado p/ ${new Date(x.agendar).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}` : "";
     const cls = ["ok", "agendado"].includes(x.resultado) ? "ok" : x.resultado === "enviando" ? "run" : "bad";
     const link = x.url ? `<a href="${x.url}" target="_blank">ver</a>` : "";
     return `<div class="item"><span class="t">${data}${ag} · ${esc(x.texto)}</span><span class="badge ${cls}">${esc(x.resultado)}</span>${link}</div>`;
   }).join("");
+  $("fecharHist").onclick = () => { gravar("postarTudo.histFechado", true); el.classList.add("hide"); };
 }
 
 // ---------------------------------------------------------- agendados
